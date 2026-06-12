@@ -17,6 +17,15 @@ const translationGroups = [
   { slug: "die-rauberinnen", zh: 132, en: 133 },
   { slug: "gier", zh: 150, en: 155 },
   { slug: "zwiegesprach", zh: 162, en: 165 },
+  { slug: "applied-drama-berlin-theater-festival", zh: 117, en: 183 },
+  { slug: "munich-immersive-theatre", zh: 121, en: 188 },
+  { slug: "from-berlin-with-love", zh: 122, en: 193 },
+  { slug: "the-three-sisters", zh: 125, en: 198 },
+  { slug: "female-stand-up-comedy", zh: 126, en: 201 },
+  { slug: "year-end-summary-2020", zh: 127, en: 204 },
+  { slug: "count-audland", zh: 134, en: 209 },
+  { slug: "it-cant-happen-here", en: 116, zh: 214 },
+  { slug: "in-der-sache-j-robert-oppenheimer", en: 118, zh: 218 },
 ];
 
 function decodeHtml(value = "") {
