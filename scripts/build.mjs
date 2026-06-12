@@ -8,18 +8,13 @@ const STYLE = new URL("../src/styles.css", import.meta.url);
 const BASE_PATH = (process.env.BASE_PATH || "").replace(/\/$/, "");
 const PUBLIC_URL = (process.env.PUBLIC_URL || "").replace(/\/$/, "");
 
-const pairs = new Map([
-  [119, 120],
-  [120, 119],
-  [123, 124],
-  [124, 123],
-  [128, 129],
-  [129, 128],
-  [131, 130],
-  [130, 131],
-  [132, 133],
-  [133, 132],
-]);
+const translationGroups = [
+  { slug: "modern-european-theatre-music", zh: 119, en: 120 },
+  { slug: "juste-la-fin-du-monde", zh: 123, en: 124 },
+  { slug: "in-c-sasha-waltz", zh: 128, en: 129 },
+  { slug: "los-anos", zh: 131, en: 130 },
+  { slug: "die-rauberinnen", zh: 132, en: 133 },
+];
 
 function decodeHtml(value = "") {
   return value
@@ -54,8 +49,8 @@ function languageOf(post) {
   return /[\u3400-\u9fff]/.test(title + stripTags(post.excerpt.rendered)) ? "zh" : "en";
 }
 
-function localPostUrl(post) {
-  return `/posts/${post.id}-${post.slug}/`;
+function reviewUrl(review) {
+  return `/reviews/${review.slug}/`;
 }
 
 function pathTo(path) {
@@ -111,19 +106,75 @@ function layout({ title, description = "Independent theatre criticism across Eur
     <footer class="site-footer">
       <div class="wrap">Powered by WordPress as a headless CMS. Frontend prototype generated locally.</div>
     </footer>
+    <script>
+      (() => {
+        const root = document.querySelector("[data-language-root]");
+        if (!root) return;
+        const available = root.dataset.available.split(",");
+        const fromUrl = new URLSearchParams(location.search).get("lang");
+        const preferred = navigator.language && navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+        const initial = available.includes(fromUrl) ? fromUrl : available.includes(preferred) ? preferred : available[0];
+        const setLang = (lang) => {
+          document.documentElement.lang = lang === "zh" ? "zh-Hans" : "en";
+          root.querySelectorAll("[data-language-panel]").forEach((panel) => {
+            panel.hidden = panel.dataset.languagePanel !== lang;
+          });
+          root.querySelectorAll("[data-language-button]").forEach((button) => {
+            const active = button.dataset.languageButton === lang;
+            button.setAttribute("aria-pressed", active ? "true" : "false");
+          });
+          const url = new URL(location.href);
+          url.searchParams.set("lang", lang);
+          history.replaceState(null, "", url);
+        };
+        root.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-language-button]");
+          if (button) setLang(button.dataset.languageButton);
+        });
+        setLang(initial);
+      })();
+    </script>
   </body>
 </html>`;
 }
 
-function card(post) {
-  const title = stripTags(post.title.rendered);
-  const img = firstImage(post.content.rendered);
-  const excerpt = stripTags(post.excerpt.rendered).slice(0, 145);
+function titleFor(review, preferred = "en") {
+  const post = review.posts[preferred] || review.posts.zh || review.posts.en;
+  return stripTags(post.title.rendered);
+}
+
+function excerptFor(review, preferred = "en") {
+  const post = review.posts[preferred] || review.posts.zh || review.posts.en;
+  return stripTags(post.excerpt.rendered);
+}
+
+function imageFor(review) {
+  const post = review.posts.en || review.posts.zh;
+  return firstImage(post.content.rendered);
+}
+
+function dateFor(review) {
+  const post = review.posts.en || review.posts.zh;
+  return post.date;
+}
+
+function languageLabel(review) {
+  const langs = Object.keys(review.posts);
+  if (langs.length === 2) return "EN / 中文";
+  return langs[0] === "zh" ? "中文" : "EN";
+}
+
+function card(review) {
+  const title = titleFor(review);
+  const subtitle = review.posts.zh && review.posts.en ? titleFor(review, "zh") : "";
+  const img = imageFor(review);
+  const excerpt = excerptFor(review).slice(0, 145);
   return `<article class="post-card">
-    ${img ? `<a href="${pathTo(localPostUrl(post))}"><img src="${escapeHtml(img)}" alt=""></a>` : ""}
+    ${img ? `<a href="${pathTo(reviewUrl(review))}"><img src="${escapeHtml(img)}" alt=""></a>` : ""}
     <div class="post-card-body">
-      <div class="meta">${fmtDate(post.date)} / ${languageOf(post).toUpperCase()}</div>
-      <h3><a href="${pathTo(localPostUrl(post))}">${escapeHtml(title)}</a></h3>
+      <div class="meta">${fmtDate(dateFor(review))} / ${languageLabel(review)}</div>
+      <h3><a href="${pathTo(reviewUrl(review))}">${escapeHtml(title)}</a></h3>
+      ${subtitle && subtitle !== title ? `<p class="subtitle">${escapeHtml(subtitle)}</p>` : ""}
       <p>${escapeHtml(excerpt)}${excerpt.length >= 145 ? "..." : ""}</p>
     </div>
   </article>`;
@@ -144,14 +195,59 @@ function cleanContent(html = "") {
     .replace(/<style[\s\S]*?<\/style>/gi, "");
 }
 
+function buildReviews(posts) {
+  const postById = new Map(posts.map((post) => [post.id, post]));
+  const grouped = [];
+  const used = new Set();
+
+  for (const group of translationGroups) {
+    const postsByLanguage = {};
+    if (postById.has(group.en)) postsByLanguage.en = postById.get(group.en);
+    if (postById.has(group.zh)) postsByLanguage.zh = postById.get(group.zh);
+    Object.values(postsByLanguage).forEach((post) => used.add(post.id));
+    if (Object.keys(postsByLanguage).length) {
+      grouped.push({ slug: group.slug, posts: postsByLanguage });
+    }
+  }
+
+  for (const post of posts) {
+    if (used.has(post.id)) continue;
+    const lang = languageOf(post);
+    grouped.push({
+      slug: `${post.id}-${post.slug}`,
+      posts: { [lang]: post },
+    });
+  }
+
+  return grouped.sort((a, b) => new Date(dateFor(b)) - new Date(dateFor(a)));
+}
+
+function languageSwitcher(review) {
+  const langs = Object.keys(review.posts);
+  if (langs.length < 2) return "";
+  return `<div class="language-switcher" aria-label="Article language switcher">
+    ${langs.includes("en") ? `<button type="button" data-language-button="en">English</button>` : ""}
+    ${langs.includes("zh") ? `<button type="button" data-language-button="zh">中文</button>` : ""}
+  </div>`;
+}
+
+function articlePanel(post, lang, fallbackHidden) {
+  const title = stripTags(post.title.rendered);
+  return `<section data-language-panel="${lang}" ${fallbackHidden ? "hidden" : ""}>
+    <div class="meta">${fmtDate(post.date)} / ${lang === "zh" ? "中文" : "EN"}</div>
+    <h1>${escapeHtml(title)}</h1>
+    <div class="article-content">${cleanContent(post.content.rendered)}</div>
+  </section>`;
+}
+
 async function main() {
   await rm(OUT, { recursive: true, force: true });
   await mkdir(new URL("assets/", OUT), { recursive: true });
   await writeFile(new URL("assets/styles.css", OUT), await readFile(STYLE, "utf8"));
 
   const posts = await fetchJson(`${SITE}/wp-json/wp/v2/posts?per_page=100&_fields=id,slug,date,title,excerpt,content,link`);
-  const postById = new Map(posts.map((post) => [post.id, post]));
-  const latest = posts[0];
+  const reviews = buildReviews(posts);
+  const latest = reviews[0];
 
   await writePage("/index.html", layout({
     title: "Home",
@@ -164,11 +260,11 @@ async function main() {
             <p class="dek">A headless WordPress prototype: the writing stays in WordPress; the public site becomes fast, custom, and free from theme UI constraints.</p>
           </div>
           <article class="hero-card">
-            ${firstImage(latest.content.rendered) ? `<img src="${escapeHtml(firstImage(latest.content.rendered))}" alt="">` : ""}
+            ${imageFor(latest) ? `<img src="${escapeHtml(imageFor(latest))}" alt="">` : ""}
             <div class="hero-card-content">
-              <div class="meta">Latest / ${fmtDate(latest.date)}</div>
-              <h2>${escapeHtml(stripTags(latest.title.rendered))}</h2>
-              <a class="button" href="${pathTo(localPostUrl(latest))}">Read review</a>
+              <div class="meta">Latest / ${fmtDate(dateFor(latest))} / ${languageLabel(latest)}</div>
+              <h2>${escapeHtml(titleFor(latest))}</h2>
+              <a class="button" href="${pathTo(reviewUrl(latest))}">Read review</a>
             </div>
           </article>
         </div>
@@ -179,7 +275,7 @@ async function main() {
             <h2>Latest Articles</h2>
             <a href="${pathTo("/articles/")}">View all</a>
           </div>
-          <div class="grid">${posts.slice(0, 6).map(card).join("")}</div>
+          <div class="grid">${reviews.slice(0, 6).map(card).join("")}</div>
         </div>
       </section>
     </main>`,
@@ -191,30 +287,28 @@ async function main() {
       <div class="wrap">
         <div class="section-title">
           <h1>Articles</h1>
-          <span class="meta">${posts.length} imported posts</span>
+          <span class="meta">${reviews.length} articles / ${posts.length} WordPress posts</span>
         </div>
-        <div class="grid">${posts.map(card).join("")}</div>
+        <div class="grid">${reviews.map(card).join("")}</div>
       </div>
     </main>`,
   }));
 
-  for (const post of posts) {
-    const translation = postById.get(pairs.get(post.id));
-    const title = stripTags(post.title.rendered);
-    await writePage(`${localPostUrl(post)}index.html`, layout({
-      title,
-      description: stripTags(post.excerpt.rendered),
-      body: `<main class="article">
-        <div class="meta">${fmtDate(post.date)} / ${languageOf(post).toUpperCase()}</div>
-        <h1>${escapeHtml(title)}</h1>
-        ${translation ? `<p class="meta">Translation pair: <a href="${pathTo(localPostUrl(translation))}">${escapeHtml(stripTags(translation.title.rendered))}</a></p>` : ""}
-        <div class="article-content">${cleanContent(post.content.rendered)}</div>
+  for (const review of reviews) {
+    const langs = Object.keys(review.posts);
+    const defaultLang = review.posts.en ? "en" : langs[0];
+    await writePage(`${reviewUrl(review)}index.html`, layout({
+      title: titleFor(review, defaultLang),
+      description: excerptFor(review, defaultLang),
+      body: `<main class="article" data-language-root data-available="${langs.join(",")}">
+        ${languageSwitcher(review)}
+        ${langs.map((lang) => articlePanel(review.posts[lang], lang, lang !== defaultLang)).join("")}
       </main>`,
     }));
   }
 
   if (PUBLIC_URL) {
-    const urls = ["/", "/articles/", ...posts.map(localPostUrl)];
+    const urls = ["/", "/articles/", ...reviews.map(reviewUrl)];
     await writePage("/sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((url) => `  <url><loc>${escapeHtml(absoluteUrl(url))}</loc></url>`).join("\n")}

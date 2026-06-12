@@ -25,5 +25,33 @@
     <footer class="site-footer">
       <div class="wrap">Powered by WordPress as a headless CMS. Frontend prototype generated locally.</div>
     </footer>
+    <script>
+      (() => {
+        const root = document.querySelector("[data-language-root]");
+        if (!root) return;
+        const available = root.dataset.available.split(",");
+        const fromUrl = new URLSearchParams(location.search).get("lang");
+        const preferred = navigator.language && navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+        const initial = available.includes(fromUrl) ? fromUrl : available.includes(preferred) ? preferred : available[0];
+        const setLang = (lang) => {
+          document.documentElement.lang = lang === "zh" ? "zh-Hans" : "en";
+          root.querySelectorAll("[data-language-panel]").forEach((panel) => {
+            panel.hidden = panel.dataset.languagePanel !== lang;
+          });
+          root.querySelectorAll("[data-language-button]").forEach((button) => {
+            const active = button.dataset.languageButton === lang;
+            button.setAttribute("aria-pressed", active ? "true" : "false");
+          });
+          const url = new URL(location.href);
+          url.searchParams.set("lang", lang);
+          history.replaceState(null, "", url);
+        };
+        root.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-language-button]");
+          if (button) setLang(button.dataset.languageButton);
+        });
+        setLang(initial);
+      })();
+    </script>
   </body>
 </html>

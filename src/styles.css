@@ -219,6 +219,12 @@ h1 {
   margin: 0;
 }
 
+.post-card .subtitle {
+  color: var(--accent-dark);
+  font-size: 15px;
+  margin: -2px 0 10px;
+}
+
 .article {
   width: min(780px, calc(100% - 32px));
   margin: 0 auto;
@@ -231,6 +237,37 @@ h1 {
 
 .article-content {
   margin-top: 32px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.language-switcher {
+  display: inline-flex;
+  gap: 6px;
+  margin: 0 0 28px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel), var(--paper) 24%);
+}
+
+.language-switcher button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+}
+
+.language-switcher button[aria-pressed="true"] {
+  background: var(--accent);
+  color: white;
 }
 
 .article-content h2,
