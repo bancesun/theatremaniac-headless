@@ -251,18 +251,25 @@ function card(review) {
 }
 
 function slide(review, index) {
-  const title = titleFor(review);
-  const subtitle = review.posts.zh && review.posts.en ? titleFor(review, "zh") : "";
   const img = imageFor(review);
-  const excerpt = excerptFor(review).slice(0, 180);
+  const enPost = review.posts.en;
+  const zhPost = review.posts.zh;
+  const enTitle = enPost ? stripTags(enPost.title.rendered) : stripTags(zhPost.title.rendered);
+  const zhTitle = zhPost ? stripTags(zhPost.title.rendered) : enTitle;
+  const enExcerpt = enPost ? stripTags(enPost.excerpt.rendered).slice(0, 180) : "";
+  const zhExcerpt = zhPost ? stripTags(zhPost.excerpt.rendered).slice(0, 180) : "";
+  const mainDate = dateFor(review);
+  const same = enTitle === zhTitle;
   return `<article class="feature-slide" data-slide="${index}" ${index ? "hidden" : ""}>
     ${img ? `<img src="${escapeHtml(img)}" alt="">` : ""}
     <div class="feature-copy">
-      <div class="meta">${fmtDate(dateFor(review))} / ${languageLabel(review)}</div>
-      <h2>${escapeHtml(title)}</h2>
-      ${subtitle && subtitle !== title ? `<p class="subtitle">${escapeHtml(subtitle)}</p>` : ""}
-      <p>${escapeHtml(excerpt)}${excerpt.length >= 180 ? "..." : ""}</p>
-      <a class="button" href="${pathTo(reviewUrl(review))}">Read review</a>
+      <div class="meta">${fmtDate(mainDate)} / EN / 中文</div>
+      <h2 data-language-panel="en">${escapeHtml(enTitle)}</h2>
+      <h2 data-language-panel="zh" hidden>${escapeHtml(zhTitle)}</h2>
+      <p data-language-panel="en">${escapeHtml(enExcerpt)}${enExcerpt.length >= 180 ? "…" : ""}</p>
+      <p data-language-panel="zh" hidden>${escapeHtml(zhExcerpt)}${zhExcerpt.length >= 180 ? "…" : ""}</p>
+      <a class="button" href="${pathTo(reviewUrl(review))}" data-language-panel="en">Read review</a>
+      <a class="button" href="${pathTo(reviewUrl(review))}" data-language-panel="zh" hidden>阅读文章</a>
     </div>
   </article>`;
 }
@@ -376,7 +383,7 @@ async function main() {
           </aside>
         </div>
       </section>
-      <section class="feature-section">
+      <section class="feature-section" data-language-root data-available="en,zh">
         <div class="wrap">
           <div class="feature-shell" data-feature-slider>
             <div class="feature-header">
