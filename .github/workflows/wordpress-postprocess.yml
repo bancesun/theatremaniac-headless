@@ -33,6 +33,7 @@ jobs:
   postprocess:
     runs-on: ubuntu-latest
     env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       WP_URL: ${{ secrets.WP_URL || 'https://cms.theatremaniac.com' }}
       WP_USER: ${{ secrets.WP_USER }}
       WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
@@ -50,7 +51,21 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
+
+      - name: Preflight
+        run: |
+          echo "POST_ID=$POST_ID"
+          echo "SOURCE_LANG=$SOURCE_LANG"
+          echo "TARGET_LANG=$TARGET_LANG"
+          echo "TRANSLATION_STATUS=$TRANSLATION_STATUS"
+          test -n "$POST_ID" || { echo "::error::Missing post ID."; exit 1; }
+          test -n "$WP_USER" || { echo "::error::Missing GitHub secret WP_USER."; exit 1; }
+          test -n "$WP_APP_PASSWORD" || { echo "::error::Missing GitHub secret WP_APP_PASSWORD."; exit 1; }
+          test -n "$OPENAI_API_KEY" || { echo "::error::Missing GitHub secret OPENAI_API_KEY."; exit 1; }
+          node --version
+          curl --fail --silent --show-error "$WP_URL/wp-json/" >/dev/null
+          echo "WordPress REST API is reachable."
 
       - name: Postprocess WordPress article
         run: |

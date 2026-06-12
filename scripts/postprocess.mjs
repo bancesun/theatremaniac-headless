@@ -47,13 +47,20 @@ function authHeader() {
 }
 
 async function wpFetch(path, options = {}) {
-  const res = await fetch(`${CMS_URL}${path}`, {
-    ...options,
-    headers: {
-      Authorization: authHeader(),
-      ...(options.headers || {}),
-    },
-  });
+  const url = `${CMS_URL}${path}`;
+  let res;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: {
+        Authorization: authHeader(),
+        ...(options.headers || {}),
+      },
+    });
+  } catch (error) {
+    const cause = error.cause ? ` (${error.cause.code || error.cause.message || error.cause})` : "";
+    throw new Error(`Network error calling WordPress ${url}: ${error.message}${cause}`);
+  }
   const text = await res.text();
   let json;
   try {
@@ -124,26 +131,32 @@ async function getOrCreateTerm(taxonomy, name) {
 
 async function inferTags(title, html, sourceLang) {
   if (!OPENAI_API_KEY) return [];
-  const res = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      input: [
-        {
-          role: "system",
-          content: "Create 5 to 8 concise WordPress tags for a theatre criticism website. Prefer production title, art form, city, venue, director, company, festival, and theme. Return comma-separated tags only.",
-        },
-        {
-          role: "user",
-          content: `Language: ${sourceLang}\nTitle: ${title}\nArticle:\n${stripTags(html).slice(0, 6000)}`,
-        },
-      ],
-    }),
-  });
+  let res;
+  try {
+    res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        input: [
+          {
+            role: "system",
+            content: "Create 5 to 8 concise WordPress tags for a theatre criticism website. Prefer production title, art form, city, venue, director, company, festival, and theme. Return comma-separated tags only.",
+          },
+          {
+            role: "user",
+            content: `Language: ${sourceLang}\nTitle: ${title}\nArticle:\n${stripTags(html).slice(0, 6000)}`,
+          },
+        ],
+      }),
+    });
+  } catch (error) {
+    const cause = error.cause ? ` (${error.cause.code || error.cause.message || error.cause})` : "";
+    throw new Error(`Network error calling OpenAI tag inference: ${error.message}${cause}`);
+  }
   const json = await res.json();
   if (!res.ok) throw new Error(`OpenAI tag inference failed: ${JSON.stringify(json, null, 2)}`);
   const output = json.output_text || json.output?.flatMap((item) => item.content || []).map((c) => c.text || "").join("") || "";
@@ -167,26 +180,32 @@ function restoreMedia(html, media) {
 async function translateHtml(html, title, sourceLang, targetLang) {
   if (!OPENAI_API_KEY) return "";
   const { text, media } = protectMedia(html);
-  const res = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      input: [
-        {
-          role: "system",
-          content: "Translate this WordPress article faithfully. Preserve HTML tags, paragraph structure, links, and placeholders like [[MEDIA_0]]. Return only translated HTML.",
-        },
-        {
-          role: "user",
-          content: `Translate from ${sourceLang} to ${targetLang}.\nTitle: ${title}\n\n${text}`,
-        },
-      ],
-    }),
-  });
+  let res;
+  try {
+    res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        input: [
+          {
+            role: "system",
+            content: "Translate this WordPress article faithfully. Preserve HTML tags, paragraph structure, links, and placeholders like [[MEDIA_0]]. Return only translated HTML.",
+          },
+          {
+            role: "user",
+            content: `Translate from ${sourceLang} to ${targetLang}.\nTitle: ${title}\n\n${text}`,
+          },
+        ],
+      }),
+    });
+  } catch (error) {
+    const cause = error.cause ? ` (${error.cause.code || error.cause.message || error.cause})` : "";
+    throw new Error(`Network error calling OpenAI translation: ${error.message}${cause}`);
+  }
   const json = await res.json();
   if (!res.ok) throw new Error(`OpenAI translation failed: ${JSON.stringify(json, null, 2)}`);
   const output = json.output_text || json.output?.flatMap((item) => item.content || []).map((c) => c.text || "").join("") || "";
@@ -195,20 +214,26 @@ async function translateHtml(html, title, sourceLang, targetLang) {
 
 async function translateText(text, sourceLang, targetLang) {
   if (!OPENAI_API_KEY || !text) return "";
-  const res = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      input: [
-        { role: "system", content: "Translate this title faithfully. Preserve proper nouns when appropriate. Return only the translated title." },
-        { role: "user", content: `Translate from ${sourceLang} to ${targetLang}: ${text}` },
-      ],
-    }),
-  });
+  let res;
+  try {
+    res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        input: [
+          { role: "system", content: "Translate this title faithfully. Preserve proper nouns when appropriate. Return only the translated title." },
+          { role: "user", content: `Translate from ${sourceLang} to ${targetLang}: ${text}` },
+        ],
+      }),
+    });
+  } catch (error) {
+    const cause = error.cause ? ` (${error.cause.code || error.cause.message || error.cause})` : "";
+    throw new Error(`Network error calling OpenAI title translation: ${error.message}${cause}`);
+  }
   const json = await res.json();
   if (!res.ok) throw new Error(`OpenAI title translation failed: ${JSON.stringify(json, null, 2)}`);
   return (json.output_text || json.output?.flatMap((item) => item.content || []).map((c) => c.text || "").join("") || "").trim();
