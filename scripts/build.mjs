@@ -15,6 +15,8 @@ const translationGroups = [
   { slug: "in-c-sasha-waltz", zh: 128, en: 129 },
   { slug: "los-anos", zh: 131, en: 130 },
   { slug: "die-rauberinnen", zh: 132, en: 133 },
+  { slug: "gier", zh: 150, en: 155 },
+  { slug: "zwiegesprach", zh: 162, en: 165 },
 ];
 
 function decodeHtml(value = "") {
@@ -102,6 +104,8 @@ function layout({ title, description = "Independent theatre criticism across Eur
         <nav class="nav" aria-label="Main navigation">
           <a href="${pathTo("/")}">Home</a>
           <a href="${pathTo("/articles/")}">Articles</a>
+          <button type="button" data-global-lang="en" aria-pressed="true">EN</button>
+          <button type="button" data-global-lang="zh" aria-pressed="false">中文</button>
           <a href="${CMS_SITE}/wp-admin/">WP Admin</a>
         </nav>
       </div>
@@ -121,30 +125,51 @@ function layout({ title, description = "Independent theatre criticism across Eur
     </footer>
     <script>
       (() => {
-        const root = document.querySelector("[data-language-root]");
-        if (!root) return;
-        const available = root.dataset.available.split(",");
+        const store = localStorage;
         const fromUrl = new URLSearchParams(location.search).get("lang");
-        const preferred = navigator.language && navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
-        const initial = available.includes(fromUrl) ? fromUrl : available.includes(preferred) ? preferred : available[0];
-        const setLang = (lang) => {
+        const navLang = navigator.language && navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+        const saved = store.getItem("tm_lang");
+        let globalLang = (saved && ["en","zh"].includes(saved)) ? saved : navLang;
+        if (fromUrl && ["en","zh"].includes(fromUrl)) globalLang = fromUrl;
+        store.setItem("tm_lang", globalLang);
+        const applyGlobalLang = (lang) => {
+          store.setItem("tm_lang", lang);
           document.documentElement.lang = lang === "zh" ? "zh-Hans" : "en";
-          root.querySelectorAll("[data-language-panel]").forEach((panel) => {
-            panel.hidden = panel.dataset.languagePanel !== lang;
+          document.querySelectorAll("[data-global-lang]").forEach((btn) => {
+            btn.setAttribute("aria-pressed", btn.dataset.globalLang === lang ? "true" : "false");
           });
-          root.querySelectorAll("[data-language-button]").forEach((button) => {
-            const active = button.dataset.languageButton === lang;
-            button.setAttribute("aria-pressed", active ? "true" : "false");
+          document.querySelectorAll("[data-language-root]").forEach((root) => {
+            const available = (root.dataset.available || "").split(",");
+            if (!available.includes(lang)) return;
+            root.querySelectorAll("[data-language-panel]").forEach((panel) => {
+              panel.hidden = panel.dataset.languagePanel !== lang;
+            });
+            root.querySelectorAll("[data-language-button]").forEach((button) => {
+              button.setAttribute("aria-pressed", button.dataset.languageButton === lang ? "true" : "false");
+            });
           });
-          const url = new URL(location.href);
-          url.searchParams.set("lang", lang);
-          history.replaceState(null, "", url);
         };
-        root.addEventListener("click", (event) => {
-          const button = event.target.closest("[data-language-button]");
-          if (button) setLang(button.dataset.languageButton);
+        document.addEventListener("click", (event) => {
+          const globalBtn = event.target.closest("[data-global-lang]");
+          if (globalBtn) {
+            event.preventDefault();
+            const lang = globalBtn.dataset.globalLang;
+            applyGlobalLang(lang);
+            const url = new URL(location.href);
+            url.searchParams.set("lang", lang);
+            history.replaceState(null, "", url);
+          }
+          const articleBtn = event.target.closest("[data-language-button]");
+          if (articleBtn) {
+            applyGlobalLang(articleBtn.dataset.languageButton);
+          }
         });
-        setLang(initial);
+        applyGlobalLang(globalLang);
+        if (!fromUrl) {
+          const url = new URL(location.href);
+          url.searchParams.set("lang", globalLang);
+          history.replaceState(null, "", url);
+        }
       })();
       (() => {
         const slider = document.querySelector("[data-feature-slider]");
@@ -325,16 +350,20 @@ async function main() {
   await writePage("/index.html", layout({
     title: "Home",
     body: `<main>
-      <section class="hero">
+      <section class="hero" data-language-root data-available="en,zh">
         <div class="wrap hero-layout">
           <div>
-            <p class="eyebrow">European theatre criticism</p>
-            <h1>Theatre, dance, opera and performance across European stages.</h1>
-            <p class="dek">Reviews and essays for readers who care about direction, bodies, music, space and the strange electricity of live performance.</p>
+            <p class="eyebrow" data-language-panel="en">European theatre criticism</p>
+            <p class="eyebrow" data-language-panel="zh" hidden>欧洲剧场评论</p>
+            <h1 data-language-panel="en">Theatre, dance, opera and performance across European stages.</h1>
+            <h1 data-language-panel="zh" hidden>剧场、舞蹈、歌剧与表演，纵观欧洲舞台。</h1>
+            <p class="dek" data-language-panel="en">Reviews and essays for readers who care about direction, bodies, music, space and the strange electricity of live performance.</p>
+            <p class="dek" data-language-panel="zh" hidden>关于欧洲当代剧场演出的评论与随笔，关注导演、肢体、音乐、空间与现场表演的奇异电光。</p>
           </div>
           <aside class="issue-note">
             <span class="brand-mark" aria-hidden="true">TM</span>
-            <p>Independent notes on contemporary stages, festivals and performance culture.</p>
+            <p data-language-panel="en">Independent notes on contemporary stages, festivals and performance culture.</p>
+            <p data-language-panel="zh" hidden>关于当代舞台、戏剧节与表演文化的独立笔记。</p>
           </aside>
         </div>
       </section>
@@ -342,7 +371,8 @@ async function main() {
         <div class="wrap">
           <div class="feature-shell" data-feature-slider>
             <div class="feature-header">
-              <p class="eyebrow">Featured</p>
+              <p class="eyebrow" data-language-panel="en">Featured</p>
+              <p class="eyebrow" data-language-panel="zh" hidden>精选</p>
               <div class="slide-controls" aria-label="Featured article controls">
                 <button type="button" data-slide-action="-1" aria-label="Previous featured article">‹</button>
                 <button type="button" data-slide-action="1" aria-label="Next featured article">›</button>
@@ -360,7 +390,8 @@ async function main() {
       <section class="section">
         <div class="wrap">
           <div class="section-title">
-            <h2>Latest Articles</h2>
+            <h2 data-language-panel="en">Latest Articles</h2>
+            <h2 data-language-panel="zh" hidden>最新文章</h2>
             <a href="${pathTo("/articles/")}">View all</a>
           </div>
           <div class="grid">${reviews.slice(0, 9).map(card).join("")}</div>
@@ -373,9 +404,10 @@ async function main() {
     title: "Articles",
     body: `<main class="section">
       <div class="wrap">
-        <div class="section-title">
-          <h1>Articles</h1>
-          <span class="meta">${reviews.length} articles / ${posts.length} WordPress posts</span>
+        <div class="section-title" data-language-root data-available="en,zh">
+          <h1 data-language-panel="en">Articles</h1>
+          <h1 data-language-panel="zh" hidden>文章</h1>
+          <span class="meta">${reviews.length} reviews / ${posts.length} posts</span>
         </div>
         <div class="grid">${reviews.map(card).join("")}</div>
       </div>

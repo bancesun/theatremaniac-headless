@@ -104,9 +104,44 @@ img {
 .footer-nav {
   display: flex;
   gap: 18px;
+  align-items: center;
   color: var(--muted);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
+}
+
+.nav [data-global-lang] {
+  all: unset;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  transition: background 0.15s, color 0.15s;
+}
+.nav [data-global-lang]:hover {
+  color: var(--ink);
+  background: var(--soft);
+}
+.nav [data-global-lang][aria-pressed="true"] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent), transparent 88%);
+}
+.nav [data-global-lang] + [data-global-lang] {
+  position: relative;
+  margin-left: 2px;
+}
+.nav [data-global-lang] + [data-global-lang]::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--line);
 }
 
 .hero {

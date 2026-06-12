@@ -20,6 +20,8 @@
         <nav class="nav" aria-label="Main navigation">
           <a href="/">Home</a>
           <a href="/articles/">Articles</a>
+          <button type="button" data-global-lang="en" aria-pressed="true">EN</button>
+          <button type="button" data-global-lang="zh" aria-pressed="false">中文</button>
           <a href="https://cms.theatremaniac.com/wp-admin/">WP Admin</a>
         </nav>
       </div>
@@ -96,30 +98,51 @@
     </footer>
     <script>
       (() => {
-        const root = document.querySelector("[data-language-root]");
-        if (!root) return;
-        const available = root.dataset.available.split(",");
+        const store = localStorage;
         const fromUrl = new URLSearchParams(location.search).get("lang");
-        const preferred = navigator.language && navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
-        const initial = available.includes(fromUrl) ? fromUrl : available.includes(preferred) ? preferred : available[0];
-        const setLang = (lang) => {
+        const navLang = navigator.language && navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+        const saved = store.getItem("tm_lang");
+        let globalLang = (saved && ["en","zh"].includes(saved)) ? saved : navLang;
+        if (fromUrl && ["en","zh"].includes(fromUrl)) globalLang = fromUrl;
+        store.setItem("tm_lang", globalLang);
+        const applyGlobalLang = (lang) => {
+          store.setItem("tm_lang", lang);
           document.documentElement.lang = lang === "zh" ? "zh-Hans" : "en";
-          root.querySelectorAll("[data-language-panel]").forEach((panel) => {
-            panel.hidden = panel.dataset.languagePanel !== lang;
+          document.querySelectorAll("[data-global-lang]").forEach((btn) => {
+            btn.setAttribute("aria-pressed", btn.dataset.globalLang === lang ? "true" : "false");
           });
-          root.querySelectorAll("[data-language-button]").forEach((button) => {
-            const active = button.dataset.languageButton === lang;
-            button.setAttribute("aria-pressed", active ? "true" : "false");
+          document.querySelectorAll("[data-language-root]").forEach((root) => {
+            const available = (root.dataset.available || "").split(",");
+            if (!available.includes(lang)) return;
+            root.querySelectorAll("[data-language-panel]").forEach((panel) => {
+              panel.hidden = panel.dataset.languagePanel !== lang;
+            });
+            root.querySelectorAll("[data-language-button]").forEach((button) => {
+              button.setAttribute("aria-pressed", button.dataset.languageButton === lang ? "true" : "false");
+            });
           });
-          const url = new URL(location.href);
-          url.searchParams.set("lang", lang);
-          history.replaceState(null, "", url);
         };
-        root.addEventListener("click", (event) => {
-          const button = event.target.closest("[data-language-button]");
-          if (button) setLang(button.dataset.languageButton);
+        document.addEventListener("click", (event) => {
+          const globalBtn = event.target.closest("[data-global-lang]");
+          if (globalBtn) {
+            event.preventDefault();
+            const lang = globalBtn.dataset.globalLang;
+            applyGlobalLang(lang);
+            const url = new URL(location.href);
+            url.searchParams.set("lang", lang);
+            history.replaceState(null, "", url);
+          }
+          const articleBtn = event.target.closest("[data-language-button]");
+          if (articleBtn) {
+            applyGlobalLang(articleBtn.dataset.languageButton);
+          }
         });
-        setLang(initial);
+        applyGlobalLang(globalLang);
+        if (!fromUrl) {
+          const url = new URL(location.href);
+          url.searchParams.set("lang", globalLang);
+          history.replaceState(null, "", url);
+        }
       })();
       (() => {
         const slider = document.querySelector("[data-feature-slider]");
