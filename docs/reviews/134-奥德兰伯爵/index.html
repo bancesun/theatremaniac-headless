@@ -4,15 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>奥德兰伯爵 - Theatre Maniac</title>
-    <meta name="description" content="一个巨大的喇叭形状的舞台面向着观众，在巨大的斜坡上人们混淆了梦境与现实&amp;hellip;">
+    <meta name="description" content="一个巨大的喇叭形状的舞台面向着观众，在巨大的斜坡上人们混淆了梦境与现实，打乱了连续的时间，也反思了阶级的矛盾。 [&amp;hellip;]">
     <link rel="stylesheet" href="/assets/styles.css">
   </head>
   <body>
     <header class="site-header">
       <div class="header-inner">
         <a class="brand" href="/">
-          <strong>Theatre Maniac</strong>
-          <span>Reviews / Essays / Performance</span>
+          <span class="brand-mark" aria-hidden="true">TM</span>
+          <span class="brand-copy">
+            <strong>Theatre Maniac</strong>
+            <span>Reviews / Essays / Performance</span>
+          </span>
         </a>
         <nav class="nav" aria-label="Main navigation">
           <a href="/">Home</a>
@@ -45,7 +48,16 @@
   </section>
       </main>
     <footer class="site-footer">
-      <div class="wrap">Powered by WordPress as a headless CMS. Frontend prototype generated locally.</div>
+      <div class="wrap footer-inner">
+        <a class="footer-brand" href="/">
+          <span class="brand-mark" aria-hidden="true">TM</span>
+          <span>Theatre Maniac</span>
+        </a>
+        <nav class="footer-nav" aria-label="Footer navigation">
+          <a href="/articles/">Articles</a>
+          <a href="https://cms.theatremaniac.com/wp-admin/">Editor Login</a>
+        </nav>
+      </div>
     </footer>
     <script>
       (() => {
@@ -73,6 +85,29 @@
           if (button) setLang(button.dataset.languageButton);
         });
         setLang(initial);
+      })();
+      (() => {
+        const slider = document.querySelector("[data-feature-slider]");
+        if (!slider) return;
+        const slides = [...slider.querySelectorAll("[data-slide]")];
+        const dots = [...slider.querySelectorAll("[data-slide-dot]")];
+        let current = 0;
+        const show = (index) => {
+          current = (index + slides.length) % slides.length;
+          slides.forEach((slide, i) => {
+            slide.hidden = i !== current;
+          });
+          dots.forEach((dot, i) => {
+            dot.setAttribute("aria-current", i === current ? "true" : "false");
+          });
+        };
+        slider.addEventListener("click", (event) => {
+          const action = event.target.closest("[data-slide-action]");
+          const dot = event.target.closest("[data-slide-dot]");
+          if (action) show(current + Number(action.dataset.slideAction));
+          if (dot) show(Number(dot.dataset.slideDot));
+        });
+        setInterval(() => show(current + 1), 7000);
       })();
     </script>
   </body>

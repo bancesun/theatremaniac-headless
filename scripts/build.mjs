@@ -93,8 +93,11 @@ function layout({ title, description = "Independent theatre criticism across Eur
     <header class="site-header">
       <div class="header-inner">
         <a class="brand" href="${pathTo("/")}">
-          <strong>Theatre Maniac</strong>
-          <span>Reviews / Essays / Performance</span>
+          <span class="brand-mark" aria-hidden="true">TM</span>
+          <span class="brand-copy">
+            <strong>Theatre Maniac</strong>
+            <span>Reviews / Essays / Performance</span>
+          </span>
         </a>
         <nav class="nav" aria-label="Main navigation">
           <a href="${pathTo("/")}">Home</a>
@@ -105,7 +108,16 @@ function layout({ title, description = "Independent theatre criticism across Eur
     </header>
     ${body}
     <footer class="site-footer">
-      <div class="wrap">Powered by WordPress as a headless CMS. Frontend prototype generated locally.</div>
+      <div class="wrap footer-inner">
+        <a class="footer-brand" href="${pathTo("/")}">
+          <span class="brand-mark" aria-hidden="true">TM</span>
+          <span>Theatre Maniac</span>
+        </a>
+        <nav class="footer-nav" aria-label="Footer navigation">
+          <a href="${pathTo("/articles/")}">Articles</a>
+          <a href="${CMS_SITE}/wp-admin/">Editor Login</a>
+        </nav>
+      </div>
     </footer>
     <script>
       (() => {
@@ -133,6 +145,29 @@ function layout({ title, description = "Independent theatre criticism across Eur
           if (button) setLang(button.dataset.languageButton);
         });
         setLang(initial);
+      })();
+      (() => {
+        const slider = document.querySelector("[data-feature-slider]");
+        if (!slider) return;
+        const slides = [...slider.querySelectorAll("[data-slide]")];
+        const dots = [...slider.querySelectorAll("[data-slide-dot]")];
+        let current = 0;
+        const show = (index) => {
+          current = (index + slides.length) % slides.length;
+          slides.forEach((slide, i) => {
+            slide.hidden = i !== current;
+          });
+          dots.forEach((dot, i) => {
+            dot.setAttribute("aria-current", i === current ? "true" : "false");
+          });
+        };
+        slider.addEventListener("click", (event) => {
+          const action = event.target.closest("[data-slide-action]");
+          const dot = event.target.closest("[data-slide-dot]");
+          if (action) show(current + Number(action.dataset.slideAction));
+          if (dot) show(Number(dot.dataset.slideDot));
+        });
+        setInterval(() => show(current + 1), 7000);
       })();
     </script>
   </body>
@@ -177,6 +212,23 @@ function card(review) {
       <h3><a href="${pathTo(reviewUrl(review))}">${escapeHtml(title)}</a></h3>
       ${subtitle && subtitle !== title ? `<p class="subtitle">${escapeHtml(subtitle)}</p>` : ""}
       <p>${escapeHtml(excerpt)}${excerpt.length >= 145 ? "..." : ""}</p>
+    </div>
+  </article>`;
+}
+
+function slide(review, index) {
+  const title = titleFor(review);
+  const subtitle = review.posts.zh && review.posts.en ? titleFor(review, "zh") : "";
+  const img = imageFor(review);
+  const excerpt = excerptFor(review).slice(0, 180);
+  return `<article class="feature-slide" data-slide="${index}" ${index ? "hidden" : ""}>
+    ${img ? `<img src="${escapeHtml(img)}" alt="">` : ""}
+    <div class="feature-copy">
+      <div class="meta">${fmtDate(dateFor(review))} / ${languageLabel(review)}</div>
+      <h2>${escapeHtml(title)}</h2>
+      ${subtitle && subtitle !== title ? `<p class="subtitle">${escapeHtml(subtitle)}</p>` : ""}
+      <p>${escapeHtml(excerpt)}${excerpt.length >= 180 ? "..." : ""}</p>
+      <a class="button" href="${pathTo(reviewUrl(review))}">Read review</a>
     </div>
   </article>`;
 }
@@ -256,26 +308,41 @@ async function main() {
 
   const posts = await fetchJson(`${CMS_SITE}/wp-json/wp/v2/posts?per_page=100&_fields=id,slug,date,title,excerpt,content,link`);
   const reviews = buildReviews(posts);
-  const latest = reviews[0];
+  const featured = reviews.filter(imageFor).slice(0, 5);
 
   await writePage("/index.html", layout({
     title: "Home",
     body: `<main>
       <section class="hero">
-        <div class="wrap hero-grid">
+        <div class="wrap hero-layout">
           <div>
-            <p class="eyebrow">Independent theatre criticism</p>
-            <h1>Sharp, elegant writing on theatre, opera, dance and performance.</h1>
-            <p class="dek">A headless WordPress prototype: the writing stays in WordPress; the public site becomes fast, custom, and free from theme UI constraints.</p>
+            <p class="eyebrow">European theatre criticism</p>
+            <h1>Theatre, dance, opera and performance across European stages.</h1>
+            <p class="dek">Reviews and essays for readers who care about direction, bodies, music, space and the strange electricity of live performance.</p>
           </div>
-          <article class="hero-card">
-            ${imageFor(latest) ? `<img src="${escapeHtml(imageFor(latest))}" alt="">` : ""}
-            <div class="hero-card-content">
-              <div class="meta">Latest / ${fmtDate(dateFor(latest))} / ${languageLabel(latest)}</div>
-              <h2>${escapeHtml(titleFor(latest))}</h2>
-              <a class="button" href="${pathTo(reviewUrl(latest))}">Read review</a>
+          <aside class="issue-note">
+            <span class="brand-mark" aria-hidden="true">TM</span>
+            <p>Independent notes on contemporary stages, festivals and performance culture.</p>
+          </aside>
+        </div>
+      </section>
+      <section class="feature-section">
+        <div class="wrap">
+          <div class="feature-shell" data-feature-slider>
+            <div class="feature-header">
+              <p class="eyebrow">Featured</p>
+              <div class="slide-controls" aria-label="Featured article controls">
+                <button type="button" data-slide-action="-1" aria-label="Previous featured article">‹</button>
+                <button type="button" data-slide-action="1" aria-label="Next featured article">›</button>
+              </div>
             </div>
-          </article>
+            <div class="feature-slides">
+              ${featured.map(slide).join("")}
+            </div>
+            <div class="slide-dots" aria-label="Choose featured article">
+              ${featured.map((_, index) => `<button type="button" data-slide-dot="${index}" ${index ? "" : `aria-current="true"`}>${index + 1}</button>`).join("")}
+            </div>
+          </div>
         </div>
       </section>
       <section class="section">
@@ -284,7 +351,7 @@ async function main() {
             <h2>Latest Articles</h2>
             <a href="${pathTo("/articles/")}">View all</a>
           </div>
-          <div class="grid">${reviews.slice(0, 6).map(card).join("")}</div>
+          <div class="grid">${reviews.slice(0, 9).map(card).join("")}</div>
         </div>
       </section>
     </main>`,
