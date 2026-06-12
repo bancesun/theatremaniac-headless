@@ -5,6 +5,8 @@ This project includes two publishing paths while keeping the public frontend sta
 - Daily workflow: write and upload with Ulysses, then run the post-processing script.
 - Backup workflow: publish a local Markdown file directly with `npm run publish`.
 
+For the fully automatic Ulysses trigger, see `AUTOMATION.md`.
+
 ## One-Time Setup
 
 Create a WordPress Application Password:

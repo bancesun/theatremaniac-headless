@@ -1,0 +1,76 @@
+name: WordPress Postprocess
+
+on:
+  repository_dispatch:
+    types:
+      - wordpress_post_uploaded
+  workflow_dispatch:
+    inputs:
+      post_id:
+        description: WordPress post ID to process
+        required: true
+      source_lang:
+        description: Source language
+        required: false
+        default: zh
+      target_lang:
+        description: Target language
+        required: false
+        default: en
+      status:
+        description: Status for generated translation
+        required: false
+        default: draft
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wp-postprocess-${{ github.event.client_payload.post_id || inputs.post_id }}
+  cancel-in-progress: false
+
+jobs:
+  postprocess:
+    runs-on: ubuntu-latest
+    env:
+      WP_URL: ${{ secrets.WP_URL || 'https://cms.theatremaniac.com' }}
+      WP_USER: ${{ secrets.WP_USER }}
+      WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4.1-mini' }}
+      POST_ID: ${{ github.event.client_payload.post_id || inputs.post_id }}
+      SOURCE_LANG: ${{ github.event.client_payload.source_lang || inputs.source_lang || 'zh' }}
+      TARGET_LANG: ${{ github.event.client_payload.target_lang || inputs.target_lang || 'en' }}
+      TRANSLATION_STATUS: ${{ github.event.client_payload.status || inputs.status || 'draft' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Postprocess WordPress article
+        run: |
+          node scripts/postprocess.mjs \
+            --post-id "$POST_ID" \
+            --source-lang "$SOURCE_LANG" \
+            --target-lang "$TARGET_LANG" \
+            --status "$TRANSLATION_STATUS"
+
+      - name: Rebuild public frontend
+        run: npm run deploy
+
+      - name: Commit generated frontend
+        run: |
+          git config user.name "theatre-maniac-bot"
+          git config user.email "actions@github.com"
+          git add docs
+          if git diff --cached --quiet; then
+            echo "No generated frontend changes to commit."
+          else
+            git commit -m "Update frontend after WordPress post $POST_ID"
+            git push
+          fi
