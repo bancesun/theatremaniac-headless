@@ -115,6 +115,50 @@ function csv(value = "") {
     .filter(Boolean);
 }
 
+async function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function openaiResponses(body, label) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    let res;
+    try {
+      res = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      const cause = error.cause ? ` (${error.cause.code || error.cause.message || error.cause})` : "";
+      lastError = new Error(`Network error calling OpenAI ${label}: ${error.message}${cause}`);
+      if (attempt < 3) await sleep(1500 * attempt);
+      continue;
+    }
+
+    const json = await res.json();
+    if (res.ok) {
+      return json;
+    }
+
+    const message = JSON.stringify(json, null, 2);
+    lastError = new Error(`OpenAI ${label} failed: ${message}`);
+    const retryable = res.status === 429 || res.status >= 500 || json?.error?.type === "server_error";
+    if (!retryable || attempt === 3) {
+      throw lastError;
+    }
+    await sleep(1500 * attempt);
+  }
+  throw lastError;
+}
+
+function openaiText(json) {
+  return json.output_text || json.output?.flatMap((item) => item.content || []).map((c) => c.text || "").join("") || "";
+}
+
 async function getOrCreateTerm(taxonomy, name) {
   const search = new URLSearchParams({ search: name, per_page: "20" });
   const existing = await wpFetch(`/wp-json/wp/v2/${taxonomy}?${search}`);
@@ -131,15 +175,8 @@ async function getOrCreateTerm(taxonomy, name) {
 
 async function inferTags(title, html, sourceLang) {
   if (!OPENAI_API_KEY) return [];
-  let res;
   try {
-    res = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const json = await openaiResponses({
         model: OPENAI_MODEL,
         input: [
           {
@@ -151,16 +188,12 @@ async function inferTags(title, html, sourceLang) {
             content: `Language: ${sourceLang}\nTitle: ${title}\nArticle:\n${stripTags(html).slice(0, 6000)}`,
           },
         ],
-      }),
-    });
+      }, "tag inference");
+    return csv(openaiText(json)).slice(0, 8);
   } catch (error) {
-    const cause = error.cause ? ` (${error.cause.code || error.cause.message || error.cause})` : "";
-    throw new Error(`Network error calling OpenAI tag inference: ${error.message}${cause}`);
+    console.warn(`${error.message}\nContinuing with fallback tags.`);
+    return ["Review", "Theatre"];
   }
-  const json = await res.json();
-  if (!res.ok) throw new Error(`OpenAI tag inference failed: ${JSON.stringify(json, null, 2)}`);
-  const output = json.output_text || json.output?.flatMap((item) => item.content || []).map((c) => c.text || "").join("") || "";
-  return csv(output).slice(0, 8);
 }
 
 function protectMedia(html) {
@@ -180,63 +213,33 @@ function restoreMedia(html, media) {
 async function translateHtml(html, title, sourceLang, targetLang) {
   if (!OPENAI_API_KEY) return "";
   const { text, media } = protectMedia(html);
-  let res;
-  try {
-    res = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
+  const json = await openaiResponses({
+    model: OPENAI_MODEL,
+    input: [
+      {
+        role: "system",
+        content: "Translate this WordPress article faithfully. Preserve HTML tags, paragraph structure, links, and placeholders like [[MEDIA_0]]. Return only translated HTML.",
       },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        input: [
-          {
-            role: "system",
-            content: "Translate this WordPress article faithfully. Preserve HTML tags, paragraph structure, links, and placeholders like [[MEDIA_0]]. Return only translated HTML.",
-          },
-          {
-            role: "user",
-            content: `Translate from ${sourceLang} to ${targetLang}.\nTitle: ${title}\n\n${text}`,
-          },
-        ],
-      }),
-    });
-  } catch (error) {
-    const cause = error.cause ? ` (${error.cause.code || error.cause.message || error.cause})` : "";
-    throw new Error(`Network error calling OpenAI translation: ${error.message}${cause}`);
-  }
-  const json = await res.json();
-  if (!res.ok) throw new Error(`OpenAI translation failed: ${JSON.stringify(json, null, 2)}`);
-  const output = json.output_text || json.output?.flatMap((item) => item.content || []).map((c) => c.text || "").join("") || "";
+      {
+        role: "user",
+        content: `Translate from ${sourceLang} to ${targetLang}.\nTitle: ${title}\n\n${text}`,
+      },
+    ],
+  }, "translation");
+  const output = openaiText(json);
   return restoreMedia(output.trim(), media);
 }
 
 async function translateText(text, sourceLang, targetLang) {
   if (!OPENAI_API_KEY || !text) return "";
-  let res;
-  try {
-    res = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        input: [
-          { role: "system", content: "Translate this title faithfully. Preserve proper nouns when appropriate. Return only the translated title." },
-          { role: "user", content: `Translate from ${sourceLang} to ${targetLang}: ${text}` },
-        ],
-      }),
-    });
-  } catch (error) {
-    const cause = error.cause ? ` (${error.cause.code || error.cause.message || error.cause})` : "";
-    throw new Error(`Network error calling OpenAI title translation: ${error.message}${cause}`);
-  }
-  const json = await res.json();
-  if (!res.ok) throw new Error(`OpenAI title translation failed: ${JSON.stringify(json, null, 2)}`);
-  return (json.output_text || json.output?.flatMap((item) => item.content || []).map((c) => c.text || "").join("") || "").trim();
+  const json = await openaiResponses({
+    model: OPENAI_MODEL,
+    input: [
+      { role: "system", content: "Translate this title faithfully. Preserve proper nouns when appropriate. Return only the translated title." },
+      { role: "user", content: `Translate from ${sourceLang} to ${targetLang}: ${text}` },
+    ],
+  }, "title translation");
+  return openaiText(json).trim();
 }
 
 async function updatePost(postId, body, lang) {
