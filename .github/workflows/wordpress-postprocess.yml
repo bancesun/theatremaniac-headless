@@ -20,7 +20,7 @@ on:
       status:
         description: Status for generated translation
         required: false
-        default: draft
+        default: publish
 
 permissions:
   contents: write
@@ -42,7 +42,7 @@ jobs:
       POST_ID: ${{ github.event.client_payload.post_id || inputs.post_id }}
       SOURCE_LANG: ${{ github.event.client_payload.source_lang || inputs.source_lang || 'zh' }}
       TARGET_LANG: ${{ github.event.client_payload.target_lang || inputs.target_lang || 'en' }}
-      TRANSLATION_STATUS: ${{ github.event.client_payload.status || inputs.status || 'draft' }}
+      TRANSLATION_STATUS: ${{ github.event.client_payload.status || inputs.status || 'publish' }}
 
     steps:
       - name: Check out repository

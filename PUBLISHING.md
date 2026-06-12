@@ -38,7 +38,7 @@ post.php?post=123&action=edit
 Then run:
 
 ```sh
-npm run postprocess -- --post-id 123 --source-lang zh --target-lang en --status draft
+npm run postprocess -- --post-id 123 --source-lang zh --target-lang en --status publish
 ```
 
 What the post-processing script does:
@@ -47,7 +47,7 @@ What the post-processing script does:
 - Keeps images in their original article positions.
 - Adds AI-inferred WordPress tags.
 - Translates the Chinese article into English.
-- Creates the English draft.
+- Publishes the English post.
 - Links both posts in Polylang.
 
 You can override AI tags manually:
@@ -56,7 +56,7 @@ You can override AI tags manually:
 npm run postprocess -- --post-id 123 --tags "Berlin, Theatre, Schaubühne, Review"
 ```
 
-After reviewing the drafts in WordPress, rebuild the public frontend:
+After reviewing the posts in WordPress, rebuild the public frontend:
 
 ```sh
 npm run deploy

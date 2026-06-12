@@ -7,7 +7,7 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
 function usage() {
   return `Usage:
-  node scripts/postprocess.mjs --post-id 123 --source-lang zh --target-lang en --status draft
+  node scripts/postprocess.mjs --post-id 123 --source-lang zh --target-lang en --status publish
 
 What it does after you publish from Ulysses:
   - cleans fixed image widths, inline styles, and old imported markup
@@ -28,7 +28,7 @@ Optional env:
 }
 
 function parseArgs(argv) {
-  const args = { status: "draft", sourceLang: "zh", targetLang: "en" };
+  const args = { status: "publish", sourceLang: "zh", targetLang: "en" };
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i];
     const value = argv[i + 1];

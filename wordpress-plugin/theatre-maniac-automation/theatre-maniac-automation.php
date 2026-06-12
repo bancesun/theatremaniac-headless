@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Theatre Maniac Automation
  * Description: Triggers the Theatre Maniac GitHub Actions post-processing workflow when Ulysses uploads a new Chinese post.
- * Version: 0.2.0
+ * Version: 0.3.0
  * Author: Theatre Maniac
  */
 
@@ -23,7 +23,7 @@ function tm_automation_defaults(): array {
         'github_token' => '',
         'source_lang' => 'zh',
         'target_lang' => 'en',
-        'translation_status' => 'draft',
+        'translation_status' => 'publish',
     ];
 }
 

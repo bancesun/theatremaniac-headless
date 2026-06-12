@@ -5,7 +5,7 @@ This setup makes the daily Ulysses workflow automatic:
 1. Ulysses uploads a Chinese post to WordPress.
 2. The WordPress plugin triggers GitHub Actions.
 3. GitHub Actions runs `scripts/postprocess.mjs`.
-4. The script cleans markup/images, adds tags, creates the English draft, links Polylang translations, rebuilds `docs/`, and pushes the frontend update.
+4. The script cleans markup/images, adds tags, publishes the English post, links Polylang translations, rebuilds `docs/`, and pushes the frontend update.
 
 ## GitHub Setup
 
@@ -58,7 +58,7 @@ Install it in WordPress:
 GitHub repository: bancesun/theatremaniac-headless
 Source language: zh
 Target language: en
-Generated translation status: draft
+Generated translation status: publish
 ```
 
 The plugin also needs a GitHub token that can create repository dispatch events for this repo. Use a fine-grained token limited to this repository if possible.
@@ -109,7 +109,7 @@ The plugin only triggers for normal WordPress posts, skips autosaves/revisions, 
 _tm_automation_dispatched
 ```
 
-That prevents the source cleanup and English draft creation from triggering the same automation again.
+That prevents the source cleanup and English post creation from triggering the same automation again.
 
 ## Manual Rerun
 
@@ -124,5 +124,5 @@ Enter the WordPress post ID and keep:
 ```txt
 source_lang=zh
 target_lang=en
-status=draft
+status=publish
 ```
