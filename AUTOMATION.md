@@ -63,6 +63,44 @@ Generated translation status: draft
 
 The plugin also needs a GitHub token that can create repository dispatch events for this repo. Use a fine-grained token limited to this repository if possible.
 
+For a fine-grained personal access token:
+
+```txt
+Repository access: Only select repositories -> bancesun/theatremaniac-headless
+Repository permissions: Contents -> Read and write
+Metadata: Read-only (selected automatically)
+```
+
+For a classic personal access token on this public repository, use:
+
+```txt
+public_repo
+```
+
+The plugin uses GitHub's `Create a repository dispatch event` endpoint. GitHub's current docs list `Contents: write` as the required fine-grained permission for that endpoint.
+
+## Test The Token
+
+After saving the plugin settings, click:
+
+```txt
+Settings -> Theatre Maniac Automation -> Test GitHub token
+```
+
+Expected result:
+
+```txt
+Status: 204
+```
+
+Common failures:
+
+```txt
+401: token is invalid, expired, or pasted incorrectly
+403: token exists but lacks the required permission
+404: token cannot access bancesun/theatremaniac-headless, or the repo field is wrong
+```
+
 ## How It Avoids Loops
 
 The plugin only triggers for normal WordPress posts, skips autosaves/revisions, skips English posts when Polylang language is available, and writes this private post meta after dispatching:

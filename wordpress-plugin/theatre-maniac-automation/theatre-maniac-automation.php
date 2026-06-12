@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Theatre Maniac Automation
  * Description: Triggers the Theatre Maniac GitHub Actions post-processing workflow when Ulysses uploads a new Chinese post.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Author: Theatre Maniac
  */
 
@@ -11,8 +11,10 @@ if (!defined('ABSPATH')) {
 }
 
 const TM_AUTOMATION_OPTION = 'tm_automation_settings';
+const TM_AUTOMATION_LAST_RESULT_OPTION = 'tm_automation_last_result';
 const TM_AUTOMATION_META = '_tm_automation_dispatched';
 const TM_AUTOMATION_EVENT = 'wordpress_post_uploaded';
+const TM_AUTOMATION_TEST_EVENT = 'wordpress_post_uploaded_test';
 
 function tm_automation_defaults(): array {
     return [
@@ -69,10 +71,24 @@ function tm_automation_sanitize_settings($input): array {
 
 function tm_automation_settings_page(): void {
     $settings = tm_automation_settings();
+    $last_result = get_option(TM_AUTOMATION_LAST_RESULT_OPTION, []);
     ?>
     <div class="wrap">
         <h1>Theatre Maniac Automation</h1>
         <p>When a new Chinese post is saved from Ulysses, this plugin triggers the GitHub Actions post-processing workflow.</p>
+        <?php if (!empty($last_result)): ?>
+            <div class="notice notice-info inline">
+                <p><strong>Last GitHub dispatch result:</strong></p>
+                <ul>
+                    <li>Time: <?php echo esc_html($last_result['time'] ?? ''); ?></li>
+                    <li>Event: <?php echo esc_html($last_result['event_type'] ?? ''); ?></li>
+                    <li>Status: <?php echo esc_html((string) ($last_result['status'] ?? '')); ?></li>
+                    <?php if (!empty($last_result['message'])): ?>
+                        <li>Message: <code><?php echo esc_html($last_result['message']); ?></code></li>
+                    <?php endif; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
         <form method="post" action="options.php">
             <?php settings_fields('tm_automation'); ?>
             <table class="form-table" role="presentation">
@@ -117,8 +133,25 @@ function tm_automation_settings_page(): void {
             </table>
             <?php submit_button(); ?>
         </form>
+        <hr>
+        <h2>Diagnostics</h2>
+        <p>Use this to check whether the saved GitHub token can create a repository dispatch event. It sends a test event that does not run the post-processing workflow.</p>
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <?php wp_nonce_field('tm_automation_test_dispatch'); ?>
+            <input type="hidden" name="action" value="tm_automation_test_dispatch">
+            <?php submit_button('Test GitHub token', 'secondary'); ?>
+        </form>
     </div>
     <?php
+}
+
+function tm_automation_save_result(string $event_type, $status, string $message = ''): void {
+    update_option(TM_AUTOMATION_LAST_RESULT_OPTION, [
+        'time' => current_time('mysql'),
+        'event_type' => $event_type,
+        'status' => $status,
+        'message' => substr($message, 0, 800),
+    ], false);
 }
 
 function tm_automation_detect_source_language(int $post_id, WP_Post $post, string $source_lang, string $target_lang): bool {
@@ -171,9 +204,38 @@ function tm_automation_dispatch(int $post_id, WP_Post $post): void {
     $settings = tm_automation_settings();
     update_post_meta($post_id, TM_AUTOMATION_META, current_time('mysql'));
 
+    $response = tm_automation_send_dispatch(TM_AUTOMATION_EVENT, [
+        'post_id' => $post_id,
+        'source_lang' => $settings['source_lang'],
+        'target_lang' => $settings['target_lang'],
+        'status' => $settings['translation_status'],
+        'post_status' => $post->post_status,
+        'post_title' => $post->post_title,
+        'site_url' => home_url('/'),
+    ]);
+
+    if (is_wp_error($response)) {
+        delete_post_meta($post_id, TM_AUTOMATION_META);
+        tm_automation_save_result(TM_AUTOMATION_EVENT, 'wp_error', $response->get_error_message());
+        error_log('Theatre Maniac automation failed: ' . $response->get_error_message());
+        return;
+    }
+
+    $code = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+    tm_automation_save_result(TM_AUTOMATION_EVENT, $code, $body ?: 'GitHub returned no response body.');
+    if ($code < 200 || $code >= 300) {
+        delete_post_meta($post_id, TM_AUTOMATION_META);
+        error_log('Theatre Maniac automation failed with GitHub status ' . $code . ': ' . $body);
+    }
+}
+add_action('save_post_post', 'tm_automation_dispatch', 99, 2);
+
+function tm_automation_send_dispatch(string $event_type, array $payload) {
+    $settings = tm_automation_settings();
     $repo = trim($settings['github_repo'], " \t\n\r\0\x0B/");
 
-    $response = wp_remote_post(
+    return wp_remote_post(
         sprintf('https://api.github.com/repos/%s/dispatches', $repo),
         [
             'timeout' => 15,
@@ -185,30 +247,41 @@ function tm_automation_dispatch(int $post_id, WP_Post $post): void {
                 'X-GitHub-Api-Version' => '2022-11-28',
             ],
             'body' => wp_json_encode([
-                'event_type' => TM_AUTOMATION_EVENT,
-                'client_payload' => [
-                    'post_id' => $post_id,
-                    'source_lang' => $settings['source_lang'],
-                    'target_lang' => $settings['target_lang'],
-                    'status' => $settings['translation_status'],
-                    'post_status' => $post->post_status,
-                    'post_title' => $post->post_title,
-                    'site_url' => home_url('/'),
-                ],
+                'event_type' => $event_type,
+                'client_payload' => $payload,
             ]),
         ]
     );
+}
+
+function tm_automation_test_dispatch(): void {
+    if (!current_user_can('manage_options')) {
+        wp_die('Unauthorized');
+    }
+    check_admin_referer('tm_automation_test_dispatch');
+
+    $settings = tm_automation_settings();
+    if (empty($settings['github_repo']) || empty($settings['github_token'])) {
+        tm_automation_save_result(TM_AUTOMATION_TEST_EVENT, 'missing_settings', 'Missing GitHub repository or GitHub token.');
+        wp_safe_redirect(admin_url('options-general.php?page=theatre-maniac-automation'));
+        exit;
+    }
+
+    $response = tm_automation_send_dispatch(TM_AUTOMATION_TEST_EVENT, [
+        'source' => 'wordpress-plugin-test',
+        'site_url' => home_url('/'),
+    ]);
 
     if (is_wp_error($response)) {
-        delete_post_meta($post_id, TM_AUTOMATION_META);
-        error_log('Theatre Maniac automation failed: ' . $response->get_error_message());
-        return;
+        tm_automation_save_result(TM_AUTOMATION_TEST_EVENT, 'wp_error', $response->get_error_message());
+        wp_safe_redirect(admin_url('options-general.php?page=theatre-maniac-automation'));
+        exit;
     }
 
     $code = wp_remote_retrieve_response_code($response);
-    if ($code < 200 || $code >= 300) {
-        delete_post_meta($post_id, TM_AUTOMATION_META);
-        error_log('Theatre Maniac automation failed with GitHub status ' . $code . ': ' . wp_remote_retrieve_body($response));
-    }
+    $body = wp_remote_retrieve_body($response);
+    tm_automation_save_result(TM_AUTOMATION_TEST_EVENT, $code, $body ?: 'GitHub returned no response body.');
+    wp_safe_redirect(admin_url('options-general.php?page=theatre-maniac-automation'));
+    exit;
 }
-add_action('save_post_post', 'tm_automation_dispatch', 99, 2);
+add_action('admin_post_tm_automation_test_dispatch', 'tm_automation_test_dispatch');
