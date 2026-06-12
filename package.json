@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "deploy": "node scripts/deploy.mjs",
+    "publish": "node scripts/publish.mjs",
     "serve": "node scripts/serve.mjs"
   }
 }
