@@ -2,7 +2,8 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const SITE = "https://theatremaniac.com";
+const CMS_SITE = (process.env.CMS_URL || "https://cms.theatremaniac.com").replace(/\/$/, "");
+const LEGACY_SITE = "https://theatremaniac.com";
 const OUT = new URL("../dist/", import.meta.url);
 const STYLE = new URL("../src/styles.css", import.meta.url);
 const BASE_PATH = (process.env.BASE_PATH || "").replace(/\/$/, "");
@@ -98,7 +99,7 @@ function layout({ title, description = "Independent theatre criticism across Eur
         <nav class="nav" aria-label="Main navigation">
           <a href="${pathTo("/")}">Home</a>
           <a href="${pathTo("/articles/")}">Articles</a>
-          <a href="${SITE}/wp-admin/">WP Admin</a>
+          <a href="${CMS_SITE}/wp-admin/">WP Admin</a>
         </nav>
       </div>
     </header>
@@ -150,7 +151,7 @@ function excerptFor(review, preferred = "en") {
 
 function imageFor(review) {
   const post = review.posts.en || review.posts.zh;
-  return firstImage(post.content.rendered);
+  return normalizeAssetUrls(firstImage(post.content.rendered));
 }
 
 function dateFor(review) {
@@ -187,10 +188,18 @@ async function writePage(path, html) {
   await writeFile(file, html);
 }
 
-function cleanContent(html = "") {
+function normalizeAssetUrls(html = "") {
   return html
-    .replaceAll(SITE, "")
-    .replace(/(src|href)=["']\/wp-content\//g, `$1="${SITE}/wp-content/`)
+    .replace(/https?:\/\/i[0-3]\.wp\.com\/theatremaniac\.com(\/wp-content\/[^"'\s?]+)(\?[^"'\s]*)?/g, `${CMS_SITE}$1`)
+    .replaceAll(`${LEGACY_SITE}/wp-content/`, `${CMS_SITE}/wp-content/`)
+    .replaceAll("http://theatremaniac.com/wp-content/", `${CMS_SITE}/wp-content/`)
+    .replaceAll(`${CMS_SITE}/wp-content/`, `${CMS_SITE}/wp-content/`);
+}
+
+function cleanContent(html = "") {
+  return normalizeAssetUrls(html)
+    .replaceAll(LEGACY_SITE, "")
+    .replace(/(src|href)=["']\/wp-content\//g, `$1="${CMS_SITE}/wp-content/`)
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "");
 }
@@ -245,7 +254,7 @@ async function main() {
   await mkdir(new URL("assets/", OUT), { recursive: true });
   await writeFile(new URL("assets/styles.css", OUT), await readFile(STYLE, "utf8"));
 
-  const posts = await fetchJson(`${SITE}/wp-json/wp/v2/posts?per_page=100&_fields=id,slug,date,title,excerpt,content,link`);
+  const posts = await fetchJson(`${CMS_SITE}/wp-json/wp/v2/posts?per_page=100&_fields=id,slug,date,title,excerpt,content,link`);
   const reviews = buildReviews(posts);
   const latest = reviews[0];
 

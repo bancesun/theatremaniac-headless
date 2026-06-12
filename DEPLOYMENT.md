@@ -8,6 +8,8 @@ Goal:
 Current state:
 
 - `theatremaniac.com` points to Hostinger / LiteSpeed at `92.113.18.178`.
+- `cms.theatremaniac.com` points to the existing WordPress install on Hostinger.
+- WordPress Address and Site Address are set to `https://cms.theatremaniac.com`.
 - The headless preview is published at:
   `https://bancesun.github.io/theatremaniac-headless/`
 
@@ -69,7 +71,7 @@ rm -rf docs && cp -R dist docs && touch docs/.nojekyll
 
 ## WordPress Settings
 
-Only after `cms.theatremaniac.com` works:
+Completed:
 
 - WordPress Address (URL): `https://cms.theatremaniac.com`
 - Site Address (URL): `https://cms.theatremaniac.com`
@@ -79,4 +81,3 @@ The frontend generator should then read from:
 ```text
 https://cms.theatremaniac.com/wp-json/wp/v2/posts
 ```
-
