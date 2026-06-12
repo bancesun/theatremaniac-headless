@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://bancesun.github.io/theatremaniac-headless/sitemap.xml
