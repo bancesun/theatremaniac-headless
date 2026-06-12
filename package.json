@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "deploy": "node scripts/deploy.mjs",
+    "postprocess": "node scripts/postprocess.mjs",
     "publish": "node scripts/publish.mjs",
     "serve": "node scripts/serve.mjs"
   }

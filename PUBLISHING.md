@@ -1,6 +1,9 @@
 # Publishing Workflow
 
-This project includes a local publishing script for drafting articles into WordPress while keeping the public frontend static and fast.
+This project includes two publishing paths while keeping the public frontend static and fast.
+
+- Daily workflow: write and upload with Ulysses, then run the post-processing script.
+- Backup workflow: publish a local Markdown file directly with `npm run publish`.
 
 ## One-Time Setup
 
@@ -20,7 +23,47 @@ export WP_APP_PASSWORD="xxxx xxxx xxxx xxxx xxxx xxxx"
 export OPENAI_API_KEY="sk-..." # optional, enables translation
 ```
 
-## Write
+## Daily Workflow: Ulysses First
+
+Use Ulysses to publish the Chinese article to WordPress as a draft or private post.
+
+After upload, open the post in WordPress and copy the numeric post ID from the URL. It looks like this:
+
+```txt
+post.php?post=123&action=edit
+```
+
+Then run:
+
+```sh
+npm run postprocess -- --post-id 123 --source-lang zh --target-lang en --status draft
+```
+
+What the post-processing script does:
+
+- Cleans fixed image widths, inline styles, and old imported markup.
+- Keeps images in their original article positions.
+- Adds AI-inferred WordPress tags.
+- Translates the Chinese article into English.
+- Creates the English draft.
+- Links both posts in Polylang.
+
+You can override AI tags manually:
+
+```sh
+npm run postprocess -- --post-id 123 --tags "Berlin, Theatre, Schaubühne, Review"
+```
+
+After reviewing the drafts in WordPress, rebuild the public frontend:
+
+```sh
+npm run deploy
+git add docs
+git commit -m "Publish latest articles"
+git push
+```
+
+## Backup Workflow: Local Markdown
 
 Write a Markdown file with images placed where they should appear:
 

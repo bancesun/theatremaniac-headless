@@ -242,10 +242,12 @@ async function writePage(path, html) {
 
 function normalizeAssetUrls(html = "") {
   return html
+    .replace(/https?:\/\/cms\.theatremaniac\.com\/wp-content\/uploads\/https?:\/\/cms\.theatremaniac\.com\/wp-content\/uploads\//g, `${CMS_SITE}/wp-content/uploads/`)
     .replace(/https?:\/\/i[0-3]\.wp\.com\/theatremaniac\.com(\/wp-content\/[^"'\s?]+)(\?[^"'\s]*)?/g, `${CMS_SITE}$1`)
     .replaceAll(`${LEGACY_SITE}/wp-content/`, `${CMS_SITE}/wp-content/`)
     .replaceAll("http://theatremaniac.com/wp-content/", `${CMS_SITE}/wp-content/`)
-    .replaceAll(`${CMS_SITE}/wp-content/`, `${CMS_SITE}/wp-content/`);
+    .replaceAll(`${CMS_SITE}/wp-content/`, `${CMS_SITE}/wp-content/`)
+    .replace(new RegExp(`${CMS_SITE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/wp-content/uploads/${CMS_SITE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/wp-content/uploads/`, "g"), `${CMS_SITE}/wp-content/uploads/`);
 }
 
 function cleanContent(html = "") {
@@ -253,7 +255,17 @@ function cleanContent(html = "") {
     .replaceAll(LEGACY_SITE, "")
     .replace(/(src|href)=["']\/wp-content\//g, `$1="${CMS_SITE}/wp-content/`)
     .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "");
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/\s(?:style|width|height|sizes)=["'][^"']*["']/gi, "")
+    .replace(/\sdata-(?:darkmode|style|autoskip|lazy-src|lazyloaded)[A-Za-z0-9_-]*=["'][^"']*["']/gi, "")
+    .replace(/\sclass=["'](?:js_darkmode__[0-9]+|alignnone|aligncenter|alignleft|alignright|size-[^"']+|wp-image-[0-9]+|wp-caption|wp-caption-text)(?:\s[^"']*)?["']/gi, (match) => {
+      const classValue = match.match(/["']([^"']*)["']/)?.[1] || "";
+      const kept = classValue
+        .split(/\s+/)
+        .filter((name) => !/^(js_darkmode__\d+|alignnone|aligncenter|alignleft|alignright|size-.+|wp-image-\d+)$/.test(name))
+        .join(" ");
+      return kept ? ` class="${kept}"` : "";
+    });
 }
 
 function buildReviews(posts) {
