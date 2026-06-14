@@ -44,6 +44,19 @@ function stripTags(html = "") {
   return decodeHtml(html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
 }
 
+function cleanExcerpt(html = "") {
+  return stripTags(html)
+    .replace(/\s*\[(?:&hellip;|&#8230;|…|\.\.\.)]\s*$/i, "")
+    .replace(/\s*(?:&hellip;|&#8230;|…|\.\.\.)\s*$/i, "")
+    .trim();
+}
+
+function excerptText(html = "", limit = 160) {
+  const text = cleanExcerpt(html);
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit).trimEnd()}…`;
+}
+
 function escapeHtml(value = "") {
   return value
     .replace(/&/g, "&amp;")
@@ -216,7 +229,7 @@ function titleFor(review, preferred = "en") {
 
 function excerptFor(review, preferred = "en") {
   const post = review.posts[preferred] || review.posts.zh || review.posts.en;
-  return stripTags(post.excerpt.rendered);
+  return cleanExcerpt(post.excerpt.rendered);
 }
 
 function imageFor(review) {
@@ -239,14 +252,14 @@ function card(review) {
   const title = titleFor(review);
   const subtitle = review.posts.zh && review.posts.en ? titleFor(review, "zh") : "";
   const img = imageFor(review);
-  const excerpt = excerptFor(review).slice(0, 145);
+  const excerpt = excerptText(excerptFor(review), 145);
   return `<article class="post-card">
     ${img ? `<a href="${pathTo(reviewUrl(review))}"><img src="${escapeHtml(img)}" alt=""></a>` : ""}
     <div class="post-card-body">
       <div class="meta">${fmtDate(dateFor(review))} / ${languageLabel(review)}</div>
       <h3><a href="${pathTo(reviewUrl(review))}">${escapeHtml(title)}</a></h3>
       ${subtitle && subtitle !== title ? `<p class="subtitle">${escapeHtml(subtitle)}</p>` : ""}
-      <p>${escapeHtml(excerpt)}${excerpt.length >= 145 ? "..." : ""}</p>
+      <p>${escapeHtml(excerpt)}</p>
     </div>
   </article>`;
 }
@@ -257,8 +270,8 @@ function slide(review, index) {
   const zhPost = review.posts.zh;
   const enTitle = enPost ? stripTags(enPost.title.rendered) : stripTags(zhPost.title.rendered);
   const zhTitle = zhPost ? stripTags(zhPost.title.rendered) : enTitle;
-  const enExcerpt = enPost ? stripTags(enPost.excerpt.rendered).slice(0, 180) : "";
-  const zhExcerpt = zhPost ? stripTags(zhPost.excerpt.rendered).slice(0, 180) : "";
+  const enExcerpt = enPost ? excerptText(enPost.excerpt.rendered, 180) : "";
+  const zhExcerpt = zhPost ? excerptText(zhPost.excerpt.rendered, 180) : "";
   const mainDate = dateFor(review);
   const same = enTitle === zhTitle;
   return `<article class="feature-slide" data-slide="${index}" ${index ? "hidden" : ""}>
@@ -267,8 +280,8 @@ function slide(review, index) {
       <div class="meta">${fmtDate(mainDate)} / EN / 中文</div>
       <h2 data-language-panel="en">${escapeHtml(enTitle)}</h2>
       <h2 data-language-panel="zh" hidden>${escapeHtml(zhTitle)}</h2>
-      <p data-language-panel="en">${escapeHtml(enExcerpt)}${enExcerpt.length >= 180 ? "…" : ""}</p>
-      <p data-language-panel="zh" hidden>${escapeHtml(zhExcerpt)}${zhExcerpt.length >= 180 ? "…" : ""}</p>
+      <p data-language-panel="en">${escapeHtml(enExcerpt)}</p>
+      <p data-language-panel="zh" hidden>${escapeHtml(zhExcerpt)}</p>
       <a class="button" href="${pathTo(reviewUrl(review))}" data-language-panel="en">Read review</a>
       <a class="button" href="${pathTo(reviewUrl(review))}" data-language-panel="zh" hidden>阅读文章</a>
     </div>
