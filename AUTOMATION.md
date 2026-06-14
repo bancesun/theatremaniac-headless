@@ -7,6 +7,8 @@ This setup makes the daily Ulysses workflow automatic:
 3. GitHub Actions runs `scripts/postprocess.mjs`.
 4. The script cleans markup/images, adds tags, publishes the English post, links Polylang translations, rebuilds `docs/`, and pushes the frontend update.
 
+If a saved post does not need translation processing, for example an existing English article edited from Ulysses, the plugin sends a rebuild-only event so the static frontend is still refreshed.
+
 ## GitHub Setup
 
 Create these repository secrets in:
@@ -110,6 +112,8 @@ _tm_automation_dispatched
 ```
 
 That prevents the source cleanup and English post creation from triggering the same automation again.
+
+The GitHub workflow runs in a single queue, so several Ulysses saves do not try to push `docs/` at the same time.
 
 ## Manual Rerun
 

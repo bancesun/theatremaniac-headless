@@ -4,6 +4,7 @@ on:
   repository_dispatch:
     types:
       - wordpress_post_uploaded
+      - wordpress_frontend_rebuild
   workflow_dispatch:
     inputs:
       post_id:
@@ -26,7 +27,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: wp-postprocess-${{ github.event.client_payload.post_id || inputs.post_id }}
+  group: wp-postprocess
   cancel-in-progress: false
 
 jobs:
@@ -43,6 +44,7 @@ jobs:
       SOURCE_LANG: ${{ github.event.client_payload.source_lang || inputs.source_lang || 'zh' }}
       TARGET_LANG: ${{ github.event.client_payload.target_lang || inputs.target_lang || 'en' }}
       TRANSLATION_STATUS: ${{ github.event.client_payload.status || inputs.status || 'publish' }}
+      REBUILD_ONLY: ${{ github.event.action == 'wordpress_frontend_rebuild' }}
 
     steps:
       - name: Check out repository
@@ -59,15 +61,29 @@ jobs:
           echo "SOURCE_LANG=$SOURCE_LANG"
           echo "TARGET_LANG=$TARGET_LANG"
           echo "TRANSLATION_STATUS=$TRANSLATION_STATUS"
+          echo "REBUILD_ONLY=$REBUILD_ONLY"
           test -n "$POST_ID" || { echo "::error::Missing post ID."; exit 1; }
-          test -n "$WP_USER" || { echo "::error::Missing GitHub secret WP_USER."; exit 1; }
-          test -n "$WP_APP_PASSWORD" || { echo "::error::Missing GitHub secret WP_APP_PASSWORD."; exit 1; }
-          test -n "$OPENAI_API_KEY" || { echo "::error::Missing GitHub secret OPENAI_API_KEY."; exit 1; }
+          if [ "$REBUILD_ONLY" != "true" ]; then
+            test -n "$WP_USER" || { echo "::error::Missing GitHub secret WP_USER."; exit 1; }
+            test -n "$WP_APP_PASSWORD" || { echo "::error::Missing GitHub secret WP_APP_PASSWORD."; exit 1; }
+            test -n "$OPENAI_API_KEY" || { echo "::error::Missing GitHub secret OPENAI_API_KEY."; exit 1; }
+          fi
           node --version
-          curl --fail --silent --show-error "$WP_URL/wp-json/" >/dev/null
+          for attempt in 1 2 3 4 5; do
+            if curl --fail --silent --show-error --max-time 30 "$WP_URL/wp-json/" >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = "5" ]; then
+              echo "::error::WordPress REST API was not reachable after retries."
+              exit 1
+            fi
+            echo "WordPress REST API not reachable yet; retrying in $((attempt * 10))s..."
+            sleep $((attempt * 10))
+          done
           echo "WordPress REST API is reachable."
 
       - name: Postprocess WordPress article
+        if: env.REBUILD_ONLY != 'true'
         run: |
           node scripts/postprocess.mjs \
             --post-id "$POST_ID" \
@@ -82,6 +98,7 @@ jobs:
         run: |
           git config user.name "theatre-maniac-bot"
           git config user.email "actions@github.com"
+          git pull --rebase
           git add docs
           if git diff --cached --quiet; then
             echo "No generated frontend changes to commit."

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Theatre Maniac Automation
  * Description: Triggers the Theatre Maniac GitHub Actions post-processing workflow when Ulysses uploads a new Chinese post.
- * Version: 0.3.0
+ * Version: 0.5.0
  * Author: Theatre Maniac
  */
 
@@ -14,6 +14,7 @@ const TM_AUTOMATION_OPTION = 'tm_automation_settings';
 const TM_AUTOMATION_LAST_RESULT_OPTION = 'tm_automation_last_result';
 const TM_AUTOMATION_META = '_tm_automation_dispatched';
 const TM_AUTOMATION_EVENT = 'wordpress_post_uploaded';
+const TM_AUTOMATION_REBUILD_EVENT = 'wordpress_frontend_rebuild';
 const TM_AUTOMATION_TEST_EVENT = 'wordpress_post_uploaded_test';
 
 function tm_automation_defaults(): array {
@@ -155,6 +156,14 @@ function tm_automation_save_result(string $event_type, $status, string $message 
 }
 
 function tm_automation_detect_source_language(int $post_id, WP_Post $post, string $source_lang, string $target_lang): bool {
+    $text = $post->post_title . ' ' . wp_strip_all_tags($post->post_content);
+    preg_match_all('/[\x{3400}-\x{9FFF}]/u', $text, $matches);
+    $cjk_count = count($matches[0]);
+
+    if ($cjk_count >= 20) {
+        return true;
+    }
+
     if (function_exists('pll_get_post_language')) {
         $lang = pll_get_post_language($post_id);
         if ($lang === $source_lang) {
@@ -165,7 +174,7 @@ function tm_automation_detect_source_language(int $post_id, WP_Post $post, strin
         }
     }
 
-    return (bool) preg_match('/[\x{3400}-\x{9FFF}]/u', $post->post_title . ' ' . wp_strip_all_tags($post->post_content));
+    return $cjk_count > 0;
 }
 
 function tm_automation_should_dispatch(int $post_id, WP_Post $post): bool {
@@ -196,8 +205,31 @@ function tm_automation_should_dispatch(int $post_id, WP_Post $post): bool {
     return trim(wp_strip_all_tags($post->post_content)) !== '';
 }
 
+function tm_automation_should_rebuild(int $post_id, WP_Post $post): bool {
+    $settings = tm_automation_settings();
+
+    if ($settings['enabled'] !== '1') {
+        return false;
+    }
+    if (empty($settings['github_repo']) || empty($settings['github_token'])) {
+        return false;
+    }
+    if ($post->post_type !== 'post') {
+        return false;
+    }
+    if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) {
+        return false;
+    }
+    if (in_array($post->post_status, ['auto-draft', 'trash', 'inherit'], true)) {
+        return false;
+    }
+
+    return trim(wp_strip_all_tags($post->post_content)) !== '';
+}
+
 function tm_automation_dispatch(int $post_id, WP_Post $post): void {
     if (!tm_automation_should_dispatch($post_id, $post)) {
+        tm_automation_rebuild_frontend($post_id, $post);
         return;
     }
 
@@ -230,6 +262,33 @@ function tm_automation_dispatch(int $post_id, WP_Post $post): void {
     }
 }
 add_action('save_post_post', 'tm_automation_dispatch', 99, 2);
+
+function tm_automation_rebuild_frontend(int $post_id, WP_Post $post): void {
+    if (!tm_automation_should_rebuild($post_id, $post)) {
+        return;
+    }
+
+    $response = tm_automation_send_dispatch(TM_AUTOMATION_REBUILD_EVENT, [
+        'post_id' => $post_id,
+        'post_status' => $post->post_status,
+        'post_title' => $post->post_title,
+        'site_url' => home_url('/'),
+        'reason' => 'post saved without translation postprocess',
+    ]);
+
+    if (is_wp_error($response)) {
+        tm_automation_save_result(TM_AUTOMATION_REBUILD_EVENT, 'wp_error', $response->get_error_message());
+        error_log('Theatre Maniac frontend rebuild failed: ' . $response->get_error_message());
+        return;
+    }
+
+    $code = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+    tm_automation_save_result(TM_AUTOMATION_REBUILD_EVENT, $code, $body ?: 'GitHub returned no response body.');
+    if ($code < 200 || $code >= 300) {
+        error_log('Theatre Maniac frontend rebuild failed with GitHub status ' . $code . ': ' . $body);
+    }
+}
 
 function tm_automation_send_dispatch(string $event_type, array $payload) {
     $settings = tm_automation_settings();
