@@ -26,6 +26,7 @@ const translationGroups = [
   { slug: "count-audland", zh: 134, en: 209 },
   { slug: "it-cant-happen-here", en: 116, zh: 214 },
   { slug: "in-der-sache-j-robert-oppenheimer", en: 118, zh: 218 },
+  { slug: "das-vermachtnis", zh: 234, en: 237 },
 ];
 
 function decodeHtml(value = "") {

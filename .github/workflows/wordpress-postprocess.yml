@@ -98,7 +98,15 @@ jobs:
         run: |
           git config user.name "theatre-maniac-bot"
           git config user.email "actions@github.com"
+          git add docs
+          git diff --cached --quiet && HAS_DOCS_CHANGES=0 || HAS_DOCS_CHANGES=1
+          if [ "$HAS_DOCS_CHANGES" = "1" ]; then
+            git stash push --staged -m generated-docs
+          fi
           git pull --rebase
+          if [ "$HAS_DOCS_CHANGES" = "1" ]; then
+            git stash pop
+          fi
           git add docs
           if git diff --cached --quiet; then
             echo "No generated frontend changes to commit."
