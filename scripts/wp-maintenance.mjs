@@ -36,13 +36,27 @@ function authHeader() {
 }
 
 async function wpFetch(path, options = {}) {
-  const res = await fetch(`${CMS_URL}${path}`, {
-    ...options,
-    headers: {
-      Authorization: authHeader(),
-      ...(options.headers || {}),
-    },
-  });
+  let res;
+  let lastError;
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      res = await fetch(`${CMS_URL}${path}`, {
+        ...options,
+        headers: {
+          Authorization: authHeader(),
+          ...(options.headers || {}),
+        },
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, attempt * 2500));
+    }
+  }
+  if (!res) {
+    const cause = lastError?.cause ? ` (${lastError.cause.code || lastError.cause.message || lastError.cause})` : "";
+    throw new Error(`Network error calling WordPress ${path}: ${lastError?.message || "fetch failed"}${cause}`);
+  }
   const text = await res.text();
   let json;
   try {
